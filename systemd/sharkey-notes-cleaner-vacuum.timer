@@ -1,0 +1,13 @@
+[Unit]
+Description=一次性：在指定低峰时刻执行 VACUUM FULL note
+
+[Timer]
+# 一次性维护：写死日期，只触发一次（改日期即可重排）
+OnCalendar=2026-10-15 03:30:00
+# 错过不补跑（避免在白天流量高峰做全表锁操作）；要改期直接改这一行再 daemon-reload
+Persistent=false
+AccuracySec=1min
+Unit=sharkey-notes-cleaner-vacuum.service
+
+[Install]
+WantedBy=timers.target

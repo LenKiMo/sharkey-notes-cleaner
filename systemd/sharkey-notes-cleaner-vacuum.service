@@ -1,0 +1,13 @@
+[Unit]
+Description=sharkey-notes-cleaner 一次性维护：VACUUM FULL note（停/起清理定时器 + 前后体积通报）
+Documentation=file:///opt/sharkey-notes-cleaner/README.md
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+# VACUUM FULL 会全表加 ACCESS EXCLUSIVE 锁，给足时间
+TimeoutStartSec=10800
+TimeoutStopSec=300
+ExecStart=/opt/sharkey-notes-cleaner/tools/vacuum-maintenance.sh
+Nice=5

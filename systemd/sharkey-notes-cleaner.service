@@ -1,0 +1,16 @@
+[Unit]
+Description=sharkey-notes-cleaner（旧远程帖清理，外部清理器）
+Documentation=file:///opt/sharkey-notes-cleaner/README.md
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/default/sharkey-notes-cleaner
+# 单次上限：MAX_MINUTES（默认 60）+ 收尾余量
+TimeoutStartSec=4200
+TimeoutStopSec=120
+# run.sh 内部跑一次性容器；只在异常时调用 CLEANER_NOTIFY_CMD 告警（常态静默）
+ExecStart=/opt/sharkey-notes-cleaner/run.sh
+Nice=5

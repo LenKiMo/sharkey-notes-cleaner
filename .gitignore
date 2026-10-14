@@ -1,0 +1,16 @@
+# 运行时产物 / 日志
+*.log
+*.ids.gz
+/state/
+/vacuum-*.log
+
+# 打包输出
+/dist/
+*.tar.gz
+*.zip
+
+# 临时
+*.tmp
+.DS_Store
+Thumbs.db
+node_modules/

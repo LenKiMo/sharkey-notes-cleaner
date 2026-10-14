@@ -1,0 +1,14 @@
+[Unit]
+Description=每天 04:00 触发 sharkey-notes-cleaner
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+# 关机错过的运行，开机后补跑
+Persistent=true
+# 错峰抖动，避免与其它维护任务撞车
+RandomizedDelaySec=600
+AccuracySec=1min
+Unit=sharkey-notes-cleaner.service
+
+[Install]
+WantedBy=timers.target
