@@ -23,7 +23,10 @@ q() { docker exec "$DB_CONTAINER" sh -c "psql -q -tA -U \$POSTGRES_USER -d \$POS
   echo "清理器容器在跑？ $(docker ps --format '{{.Names}}' | grep -c cleaner)（应为 0）"
   echo "before: note=$(q "select pg_size_pretty(pg_total_relation_size('note'))") heap=$(q "select pg_size_pretty(pg_table_size('note'))") idx=$(q "select pg_size_pretty(pg_indexes_size('note'))") db=$(q "select pg_size_pretty(pg_database_size(current_database()))")"
   t0=$(date +%s)
-  q "SET statement_timeout=0; VACUUM (FULL, ANALYZE, VERBOSE) note;"
+  # ⚠️ psql 的 `-c "A; B"` 会把多条语句当成**一个隐式事务**，而 VACUUM 不允许在事务块内运行
+  # （否则报 `ERROR: VACUUM cannot run inside a transaction block`，rc=1、1 秒退出）。
+  # 必须拆成两条独立的 -c：每条 -c 各自一个事务，SET 才只作用于本会话。
+  docker exec "$DB_CONTAINER" sh -c 'psql -q -tA -U $POSTGRES_USER -d $POSTGRES_DB -c "SET statement_timeout=0" -c "VACUUM (FULL, ANALYZE, VERBOSE) note"'
   rc=$?
   echo "elapsed=$(( $(date +%s) - t0 ))s"
   echo "after : note=$(q "select pg_size_pretty(pg_total_relation_size('note'))") heap=$(q "select pg_size_pretty(pg_table_size('note'))") idx=$(q "select pg_size_pretty(pg_indexes_size('note'))") db=$(q "select pg_size_pretty(pg_database_size(current_database()))")"
