@@ -13,8 +13,8 @@ STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 PKG="$STAGE/$NAME-$VER"
 mkdir -p "$PKG"
-for f in clean.mjs run.sh install.sh env.example README.md CHANGELOG.md VERSION LICENSE; do
-  cp "$ROOT/$f" "$PKG/$f"
+for f in clean.mjs run.sh install.sh env.example README.md CHANGELOG.md VERSION LICENSE .gitignore .gitattributes; do
+  [ -f "$ROOT/$f" ] && cp "$ROOT/$f" "$PKG/$f"
 done
 cp -r "$ROOT/systemd" "$ROOT/sql" "$ROOT/docs" "$ROOT/tools" "$PKG/"
 chmod 0755 "$PKG/run.sh" "$PKG/install.sh"
