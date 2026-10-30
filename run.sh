@@ -23,6 +23,7 @@ _PRE_MAX_MINUTES="${MAX_MINUTES-}"; _PRE_MAX_NOTES="${MAX_NOTES-}"; _PRE_SLEEP_M
 
 INSTALL_DIR="${INSTALL_DIR:-/opt/sharkey-notes-cleaner}"
 IMAGE="${CLEANER_IMAGE:?CLEANER_IMAGE 未设置（见 $ENV_FILE）}"
+APP_CONTAINER="${CLEANER_APP_CONTAINER:-sharkey-web}"
 NETWORK="${CLEANER_NETWORK:?CLEANER_NETWORK 未设置}"
 CONFIG_DIR="${CLEANER_CONFIG_DIR:?CLEANER_CONFIG_DIR 未设置}"
 CONTAINER_NAME="${CLEANER_CONTAINER_NAME:-sharkey-notes-cleaner}"
@@ -36,9 +37,41 @@ mkdir -p "$STATE_DIR"
 OUT=$(mktemp)
 trap 'rm -f "$OUT"' EXIT
 
+# ── 镜像可用性自愈 ───────────────────────────────────────────────────────────
+# 配置里的 tag 可能在「换镜像 / 镜像被 prune」之后消失（典型：第三方镜像线停更、
+# 切到自建镜像后旧 tag 被清掉）。此时绝不能盲拉 registry：本地自建镜像名不在任何
+# registry 里，docker 会报 pull access denied 并以 rc=125 退出，systemd 只留下一行
+# 「rc=125」，看不出根因。这里改为退回「运行中应用容器正在用的镜像 ID」（sha256，
+# 永不触发 pull），并明确打印 WARN。
+if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
+  _used_container=""
+  for _c in "$APP_CONTAINER" sharkey-web sharkey app web; do
+    [ -n "$_c" ] || continue
+    _live_id="$(docker inspect -f '{{.Image}}' "$_c" 2>/dev/null)" || continue
+    [ -n "$_live_id" ] || continue
+    docker image inspect "$_live_id" >/dev/null 2>&1 || continue
+    IMAGE="$_live_id"
+    _used_container="$_c"
+    break
+  done
+  if [ -n "$_used_container" ]; then
+    echo "WARN: CLEANER_IMAGE 本地不存在，已退回容器 $_used_container 正在使用的镜像 $IMAGE"
+    echo "WARN: 请把 $ENV_FILE 的 CLEANER_IMAGE 同步成该容器当前的镜像 tag（重跑 install.sh 会自动同步）" >&2
+  else
+    echo "FATAL: CLEANER_IMAGE 本地不存在，且探测不到可用的应用容器镜像（候选：$APP_CONTAINER / sharkey-web / sharkey）" >&2
+    echo "       未执行 docker run。请核对 $ENV_FILE 的 CLEANER_IMAGE，或 docker ps 确认应用容器在跑。" >&2
+    if [ -n "$NOTIFY_CMD" ] && [ -x "$NOTIFY_CMD" ]; then
+      "$NOTIFY_CMD" "⚠️ sharkey-notes-cleaner 未执行：镜像缺失
+CLEANER_IMAGE 本地不存在，且找不到应用容器镜像
+（配置：$ENV_FILE）" || true
+    fi
+    exit 66
+  fi
+fi
+
 docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1
 
-docker run --rm --name "$CONTAINER_NAME" \
+docker run --rm --pull never --name "$CONTAINER_NAME" \
   --network "$NETWORK" --entrypoint node \
   --memory "${CLEANER_MEMORY:-512m}" \
   -v "$INSTALL_DIR:/cleaner:ro" \

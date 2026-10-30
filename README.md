@@ -262,6 +262,7 @@ docker exec -i <db容器> sh -c 'psql -U $POSTGRES_USER -d $POSTGRES_DB' < sql/0
 | 容器 `--entrypoint` 疑虑 | 镜像 `ENTRYPOINT` 是 `/sbin/tini --`，会 exec 你传入的命令 | 直接用即可；想显式写 `--entrypoint node` 也可以 |
 | 应用日志出现签名失败等 error | 通常是既有的联邦中继噪音，与本清理无关 | 对比清理前后的日志条数与类型；有新增类型再排查 |
 | `batch-failed` 连续多次后中止 | 语句超时 / 死锁 / 完整性竞态 | 降低 `BATCH`、加大 `SLEEP_MS`；看日志里的 `code`（`57014` 超时 / `40P01` 死锁 / `23xxx` 完整性） |
+| 每天固定 `rc=125`，日志只有 `Unable to find image '<tag>' locally` + `pull access denied` | `CLEANER_IMAGE` 指向的 tag 已被删除或替换（典型：切到自建镜像后旧镜像被 prune；本地自建镜像名不在任何 registry，docker 尝试 pull 必然被拒） | `run.sh` 会**自动退回运行中应用容器正在用的镜像 ID** 并打 WARN（1.0.5 起）；根治是把 `CLEANER_IMAGE` 同步成 `docker inspect -f '{{.Config.Image}}' <web容器>` 的输出，直接重跑 `install.sh` 会自动同步 |
 
 ## ⚠️ 限制与风险（请先读完再动手）
 

@@ -1,3 +1,14 @@
+## 1.0.5
+
+- `run.sh`：**镜像缺失自愈**。`CLEANER_IMAGE` 指向的 tag 被删除/prune 后（典型：第三方镜像线停更、切自建镜像后
+  旧 tag 被清），旧行为是盲拉 registry → 本地自建镜像名必然 `pull access denied` → `rc=125`，systemd 只留一行
+  `rc=125` 无从归因。现在先 `docker image inspect`，缺则退回**运行中应用容器（`CLEANER_APP_CONTAINER`，默认
+  `sharkey-web`）正在使用的镜像 ID**（sha256，不会触发 pull）并打 WARN；两者都没有则以 `exit 66` +
+  人话告警退出，不再伪装成 docker 错误。`docker run` 另加 `--pull never` 兜底。
+- `install.sh`：配置已存在时也**同步** `CLEANER_IMAGE` / `CLEANER_NETWORK` / `CLEANER_CONFIG_DIR` 三项
+  （跟随运行中容器；业务参数不动，改前自动备份）。这正是本次故障的根因：切镜像时没同步这几项。
+- `env.example` 新增 `CLEANER_APP_CONTAINER`；README 故障排查补 `rc=125` 一行。
+
 ## 1.0.4
 
 - 新增一次性维护单元 `systemd/sharkey-notes-cleaner-vacuum.{service,timer}` + `tools/vacuum-maintenance.sh`：

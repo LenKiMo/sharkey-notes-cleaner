@@ -145,7 +145,27 @@ if [ ! -f "$ENV_FILE" ]; then
   chmod 0644 "$ENV_FILE"
   echo "已写入配置 $ENV_FILE"
 else
-  echo "配置已存在，未覆盖：$ENV_FILE"
+  echo "配置已存在，未覆盖业务参数：$ENV_FILE"
+  # 但「跟随运行中容器」的三项必须同步：换镜像/换 compose 目录后不同步，
+  # 清理器就会拿着已不存在的镜像 tag 去 docker run（本地无该 tag → 尝试 pull →
+  # pull access denied → rc=125），而 systemd 只留一行 rc，极难归因。
+  _changed=0
+  for _kv in "CLEANER_IMAGE=$IMAGE" "CLEANER_NETWORK=$NETWORK" "CLEANER_CONFIG_DIR=$CONFIG_DIR"; do
+    _k="${_kv%%=*}"; _want="${_kv#*=}"
+    [ -n "$_want" ] || continue
+    _cur="$(grep -E "^${_k}=" "$ENV_FILE" | tail -1 | cut -d= -f2- || true)"
+    if [ "$_cur" != "$_want" ]; then
+      cp -a "$ENV_FILE" "${ENV_FILE}.bak-$(date +%Y%m%d-%H%M%S)"
+      if grep -qE "^${_k}=" "$ENV_FILE"; then
+        sed -i "s|^${_k}=.*|${_k}=${_want}|" "$ENV_FILE"
+      else
+        printf '%s=%s\n' "$_k" "$_want" >> "$ENV_FILE"
+      fi
+      echo "已同步 $_k: $_cur -> $_want（原文件已备份）"
+      _changed=1
+    fi
+  done
+  [ "$_changed" -eq 0 ] && echo "配置与运行中容器一致，无需改动"
 fi
 
 # ── 索引体检（只查不改） ──────────────────────────────────────────────────────
